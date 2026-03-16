@@ -9,17 +9,9 @@ CLAW_PATH="/opt/lobster_tank"
 REAL_USER=${SUDO_USER:-$(whoami)}
 USER_ID_NUM=$(id -u $REAL_USER)
 
-get_bus_env() {
-    echo "XDG_RUNTIME_DIR=/run/user/$USER_ID_NUM DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$USER_ID_NUM/bus"
-}
+get_bus_env() { echo "XDG_RUNTIME_DIR=/run/user/$USER_ID_NUM DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$USER_ID_NUM/bus"; }
 
-check_env() {
-    if [ ! -d "$CLAW_PATH" ]; then
-        echo -e "${RED}❌ 錯誤：找不到目錄 $CLAW_PATH。${NC}"
-        return 1
-    fi
-    cd "$CLAW_PATH" || return 1
-}
+check_env() { [ ! -d "$CLAW_PATH" ] && echo -e "${RED}❌ 錯誤：找不到目錄 $CLAW_PATH。${NC}" && return 1; cd "$CLAW_PATH" || return 1; }
 
 run_step() {
     echo -e "${YELLOW}>>> 正在執行：$2 ...${NC}"
@@ -40,51 +32,55 @@ fn_3_git_clone() { [ -d "$CLAW_PATH/.git" ] && (cd "$CLAW_PATH" && sudo -u $REAL
 fn_4_pnpm_build() { check_env || return 1; sudo chown -R $REAL_USER:$REAL_USER "$CLAW_PATH"; sudo -u $REAL_USER rm -rf dist node_modules; sudo -u $REAL_USER pnpm install && sudo -u $REAL_USER pnpm run build && sudo -u $REAL_USER pnpm ui:build; }
 fn_5_linger() { sudo loginctl enable-linger $REAL_USER; }
 
-# --- [6 配置同步：模型字串精準版] ---
+# --- [6 配置同步：防呆校正版] ---
 fn_6_config_sync() {
     check_env || return 1
     [ ! -f "dist/index.js" ] && echo -e "${RED}錯誤：未編譯。${NC}" && return 1
 
-    echo -e "${YELLOW}正在執行基地降溫與檔案鎖定清理...${NC}"
+    echo -e "${YELLOW}正在清理環境與釋放資源...${NC}"
     sudo -u $REAL_USER env $(get_bus_env) systemctl --user stop openclaw-gateway > /dev/null 2>&1
     pgrep -f "node.*openclaw" | grep -v $$ | xargs sudo kill -9 > /dev/null 2>&1
     sudo rm -f /home/$REAL_USER/.openclaw/*.lock > /dev/null 2>&1
-    sleep 2
-    stty sane
+    sleep 1; stty sane
 
     read -e -p "1. Gemini API Key: " USER_GEMINI
     read -e -p "2. Telegram Bot Token: " USER_TOKEN
     read -e -p "3. Telegram User ID: " USER_ID
-    # 🔥 修正：使用龍蝦 3.14 認得的精確模型名稱
-    read -e -p "4. 模型選擇 [1: 2.0-flash (推薦), 2: 1.5-flash]: " MODEL_CHOICE
-    read -e -p "5. 檢查間隔 [預設 12h，可節省免費配額]: " USER_INTERVAL
-    
+    read -e -p "4. 模型 [1: 2.0-flash, 2: 1.5-flash]: " MODEL_CHOICE
+    read -e -p "5. 檢查間隔 [預設 24h, 建議 24h+]: " USER_INTERVAL
+
+    # 🔥 [關鍵修正]：防呆驗證
+    USER_INTERVAL=${USER_INTERVAL:-24h}
+    # 如果使用者只輸入純數字 (如 199)，自動加上 "h" 單位
+    [[ $USER_INTERVAL =~ ^[0-9]+$ ]] && USER_INTERVAL="${USER_INTERVAL}h"
+
     SELECTED_MODEL="google/gemini-2.0-flash"
     [ "$MODEL_CHOICE" == "2" ] && SELECTED_MODEL="google/gemini-1.5-flash"
-    USER_INTERVAL=${USER_INTERVAL:-12h}
 
+    # 🔥 [關鍵修正]：在 .env 加入強制靜默參數
     sudo -u $REAL_USER cat <<EOT > "$CLAW_PATH/.env"
 GEMINI_API_KEY=$USER_GEMINI
 TELEGRAM_BOT_TOKEN=$USER_TOKEN
 ALLOWED_TELEGRAM_USER_IDS=$USER_ID
 OPENCLAW__AGENTS__DEFAULTS__HEARTBEAT__CADENCE=$USER_INTERVAL
+OPENCLAW__GATEWAY__DISCOVERY__ENABLED=false
 NODE_ENV=production
 NODE_OPTIONS="--dns-result-order=ipv4first"
 EOT
 
-    echo -e "${YELLOW}正在同步核心大腦設定...${NC}"
+    echo -e "${YELLOW}正在同步核心設定...${NC}"
     sudo -u $REAL_USER node dist/index.js agents create --name main 2>/dev/null
     sudo -u $REAL_USER node dist/index.js config set gateway.mode local
     sudo -u $REAL_USER node dist/index.js config set agents.defaults.model "$SELECTED_MODEL"
     sudo -u $REAL_USER node dist/index.js config set channels.telegram.enabled true
-    sudo -u $REAL_USER node dist/index.js channels set telegram --allowFrom "[$USER_ID]" 2>/dev/null || sudo -u $REAL_USER node dist/index.js config set channels.telegram.allowFrom "[$USER_ID]"
+    sudo -u $REAL_USER node dist/index.js config set channels.telegram.allowFrom "[$USER_ID]"
 
     NODE_BIN=$(which node)
     SERVICE_FILE="/home/$REAL_USER/.config/systemd/user/openclaw-gateway.service"
     mkdir -p $(dirname $SERVICE_FILE)
     sudo -u $REAL_USER cat <<EOT > $SERVICE_FILE
 [Unit]
-Description=OpenClaw Manager V3.5.8
+Description=OpenClaw Manager V3.5.9
 After=network.target
 [Service]
 Type=simple
@@ -99,24 +95,24 @@ EOT
     fn_restart
 }
 
-# --- [🎖️ 兵團指揮官管理區：五大功能] ---
-fn_census() { check_env && sudo -u $REAL_USER node dist/index.js agents list 2>/dev/null | grep "^- " | sed 's/- /🦞 /' || echo "無活躍特務。"; }
-fn_add_agent() { check_env || return; read -e -p "新特務名稱: " NAME; [ -n "$NAME" ] && sudo -u $REAL_USER node dist/index.js agents create --name "$NAME"; }
+# --- [🎖️ 兵團指揮官專區] ---
+fn_census() { check_env && sudo -u $REAL_USER node dist/index.js agents list 2>/dev/null | grep "^- " | sed 's/- /🦞 /' || echo "無特務。"; }
+fn_add_agent() { check_env || return; read -e -p "新特務代號: " NAME; [ -n "$NAME" ] && sudo -u $REAL_USER node dist/index.js agents create --name "$NAME"; }
 fn_del_agent() { check_env || return; fn_census; read -e -p "裁撤名稱: " NAME; [[ "$NAME" != "main" && -d "/home/$REAL_USER/.openclaw/agents/$NAME" ]] && sudo -u $REAL_USER rm -rf "/home/$REAL_USER/.openclaw/agents/$NAME" || echo "取消。"; }
-fn_toggle_agent() { local m=$1; check_env || return; fn_census; read -e -p "代號: " N; [ -z "$N" ] && return; sudo -u $REAL_USER node dist/index.js config set agents."$N".enabled $m; echo "已更新，按 [r] 重啟。"; }
+fn_toggle_agent() { local m=$1; check_env || return; fn_census; read -e -p "代號: " N; [ -z "$N" ] && return; sudo -u $REAL_USER node dist/index.js config set agents."$N".enabled $m; echo "已更新，按 [r] 重啟生效。"; }
 
-# --- [🕹️ 運維控制與診斷] ---
+# --- [🕹️ 運維與過濾日誌] ---
 fn_stop() { echo -e "${YELLOW}🛑 強制停止龍蝦進程...${NC}"; sudo -u $REAL_USER env $(get_bus_env) systemctl --user stop openclaw-gateway > /dev/null 2>&1; pgrep -f "node.*openclaw" | grep -v $$ | xargs sudo kill -9 > /dev/null 2>&1; echo -e "${GREEN}✅ 已冷卻。${NC}"; }
 fn_start() { check_env && sudo -u $REAL_USER env $(get_bus_env) systemctl --user start openclaw-gateway; }
-fn_restart() { fn_stop; sleep 1; fn_start; echo -e "${GREEN}✅ 重新啟動成功。${NC}"; }
+fn_restart() { fn_stop; sleep 1; fn_start; echo -e "${GREEN}✅ 重啟成功。${NC}"; }
 fn_status() { sudo -u $REAL_USER env $(get_bus_env) systemctl --user status openclaw-gateway; }
-fn_logs() { echo -e "${YELLOW}正在進入過濾日誌模式... (按 Ctrl + C 結束)${NC}"; sudo -u $REAL_USER env $(get_bus_env) journalctl --user -u openclaw-gateway -f | grep -vE "bonjour|probing|restarting advertiser|Can't probe"; }
+fn_logs() { echo -e "${YELLOW}進入過濾日誌模式... (按 Ctrl + C 結束)${NC}"; sudo -u $REAL_USER env $(get_bus_env) journalctl --user -u openclaw-gateway -f | grep -vE "bonjour|probing|restarting advertiser|Can't probe"; }
 
 # --- [主選單界面] ---
 show_menu() {
     clear; stty sane
     echo -e "${GREEN}==========================================${NC}"
-    echo -e "    🦞 OpenClaw Manager V3.5.8"
+    echo -e "    🦞 OpenClaw Manager V3.5.9"
     echo -e "${GREEN}==========================================${NC}"
     echo -e " 1) 系統基礎工具安裝"
     echo -e " 2) Node.js 與環境建置"
@@ -161,7 +157,7 @@ while true; do
         x) fn_del_agent; read -p "按 [Enter] 返回..." ;;
         e) fn_toggle_agent "true"; read -p "按 [Enter] 返回..." ;;
         p) fn_toggle_agent "false"; read -p "按 [Enter] 返回..." ;;
-        n) ping -c 1 api.telegram.org > /dev/null 2>&1 && echo "DNS 正常" || echo "DNS 失敗"; read -p "按 [Enter] 返回..." ;;
+        n) ping -c 1 api.telegram.org > /dev/null 2>&1 && echo "DNS OK" || echo "DNS FAIL"; read -p "按 [Enter] 返回..." ;;
         d) sudo rm -rf /tmp/openclaw/*.log; read -p "日誌已清..." ;;
         s) fn_start; sleep 1 ;;
         t) fn_stop; sleep 1 ;;
