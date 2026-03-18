@@ -63,3 +63,45 @@
     }
   }
 }
+```
+
+---
+
+## 🏥 龍蝦獲取sudo權限請在terminal輸入以下
+
+```
+sudo mkdir -p /var/www/yourProject
+sudo chown -R ubuntu:ubuntu /var/www
+sudo chmod -R 755 /var/www
+```
+
+
+```
+printf 'server {
+    listen 80;
+    listen [::]:80;
+    server_name _;
+
+    root /var/www/gapoon-shop/public;
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+
+    index index.php index.html index.htm;
+
+    charset utf-8;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}' | sudo tee /etc/nginx/sites-available/gapoon-shop > /dev/null
+```
