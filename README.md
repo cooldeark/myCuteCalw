@@ -1,88 +1,65 @@
-# 🦞 OpenClaw Manager V3.5.8 — 指揮官旗艦版
+# 🦞 OpenClaw Manager V3.9.0 (GAPOON Edition)
 
-![Version](https://img.shields.io/badge/Version-V3.5.8-green.svg)
-![Compatibility](https://img.shields.io/badge/OpenClaw-3.14%20fba394c-blue.svg)
+![OpenClaw Version](https://img.shields.io/badge/OpenClaw-2026.3.14_(1561c6a)-green)
+![Node Version](https://img.shields.io/badge/Node-v22.x-blue)
+![Status](https://img.shields.io/badge/Status-Stable_v3.9.0-orange)
 
-本腳本是專為 **OpenClaw (v3.14+)** 打造的深度運維管理終端，整合了數日來的實戰除錯經驗，旨在解決雲端伺服器環境中常見的連線死鎖、API 配額崩潰及進程自殘等問題。
-
----
-
-## 🎖️ 指揮官核心戰術功能
-
-### 1. 兵團精確管理 (Agent Management)
-* **`c` 普查 (Census)**：一鍵列出所有活躍特務，掌握兵力分配。
-* **`a` 招募 (Add)**：動態新增龍蝦特務，不需動到原始碼。
-* **`x` 裁撤 (Delete)**：安全移除多餘特務（自動保護 `main` 特務）。
-* **`e/p` 啟動與暫停**：針對特定特務進行休眠或喚醒，精準控制 API 消耗。
-
-### 2. 環境自動優化 (Environment Fixes)
-* **IPv4 優先連線**：自動注入 `dns-result-order=ipv4first`，解決 AWS 等雲端環境 IPv6 導致的 `ETIMEDOUT`。
-* **進程隔離保護**：精準的 `pgrep` 斬首邏輯，確保殺死卡死的 Node 程式時，管理腳本不會自殺 (Self-Killed)。
-* **日誌雜訊過濾**：自動屏蔽 `Bonjour/mDNS` 在雲端環境噴出的無效廣播警告。
+這是專為 **OpenClaw 2026.3.14 (1561c6a)** 打造的運維管理腳本。旨在解決 2026 年環境下遇到的 TypeScript 編譯衝突與配置校驗 Bug。
 
 ---
 
-## 🚀 部署指南
+## 🛠️ V3.9.0 核心修復說明
 
-### 快速安裝
-1. 在您的主機上創建腳本：
-   ```bash
-   nano install_openclaw.sh
-   ```
-2. 貼入 **V3.5.8** 代碼並存檔。
-3. 賦予執行權限並啟動：
-   ```bash
-   chmod +x install_openclaw.sh && ./install_openclaw.sh
-   ```
+- **強制編譯修復 (TS2344)**：自動於 `src/config/zod-schema.core.ts` 注入 `// @ts-nocheck`，解決官方版本 `thinkingFormat` 類型不匹配導致的編譯中斷。
+- **解鎖啟動攔截**：自動注入 `gateway.mode: local`，修正清空配置目錄後出現的 `Gateway start blocked` 報錯。
+- **心跳間隔同步**：完整支援 `.env` 環境變數注入，確保 `HEARTBEAT_CADENCE` 定時任務穩定運作。
+- **絕對垂直選單**：優化選單排版，所有操作選項（s, t, r, k, l, d）採垂直對位排列，提升監控體驗。
 
 ---
 
-## 🕹️ 控制台指令對照表
+## 🚀 部署與使用
 
-| 指令 | 名稱 | 功能描述 |
-| :--- | :--- | :--- |
-| **`6`** | **配置同步** | 核心功能。寫入 API Key、Token 並鎖定 2.0-flash 模型。 |
-| **`i`** | **一鍵安裝** | 從系統工具、Node 環境到編譯與配置，全自動一條龍部署。 |
-| **`c/a/x`** | **兵團管理** | 查閱、新增、刪除龍蝦特務。 |
-| **`e/p`** | **特務開關** | 啟用或暫停特定 Agent（需按 `r` 重啟生效）。 |
-| **`l`** | **實時日誌** | 進入「純淨模式」監看，自動過濾 Bonjour 雜訊。 |
-| **`s/t/r`** | **運維控制** | 啟動、停止（清場）、重啟網關服務。 |
-| **`n`** | **網路診斷** | 檢查伺服器到 Telegram API 的通訊是否有被防火牆阻斷。 |
+1. **環境初始化**：
+   執行腳本選單中的 **`i` (一鍵安裝全餐)**，系統將自動完成工具安裝、代碼下載、**原始碼手術修復**及編譯建置。
+   
+2. **啟動/重啟**：
+   - 啟動兵團：按 **`s`**
+   - 重新啟動：按 **`r`** (修改 JSON 後必執行)
+   - 查看日誌：按 **`l`**
 
 ---
 
-## 🩺 緊急排障 (Troubleshooting)
+## 📡 Telegram 遠端指令 (即時更新)
 
-### ⚠️ 遇到 CPU 100% 或 SSH 卡死
-如果發現龍蝦進程失控瘋狂重試，請在選單外執行「斬首指令」：
-```bash
-# 強制殺死所有龍蝦，但保留管理腳本進程
-pgrep -f "node.*openclaw" | grep -v $$ | xargs sudo kill -9 > /dev/null 2>&1
+部署後無需手動編輯伺服器檔案，直接於 Telegram 對機器人發送以下指令：
 
-# 清理檔案鎖定（防止下次啟動顯示已在執行）
-sudo rm -f /home/$USER/.openclaw/*.lock
-```
+### 1. 更新大腦/持股背景
+指令語法：`/agent main instruction [您的專長指令]`
 
-### ⚠️ 遇到 "API rate limit reached"
-這通常是因為連線不穩導致的連鎖重試，請執行以下步驟：
-1. 按 **`t`** 停止服務，讓基地冷卻 **15 分鐘**。
-2. 執行指令清除緩存：
-   ```bash
-   sudo rm -rf /home/ubuntu/.openclaw/sessions/*
-   sudo rm -rf /home/ubuntu/.openclaw/cache/*
-   ```
-3. 按 **`6`** 重新同步，將 `Heartbeat Cadence` 設為 **`24h`** 或更高以節省配額。
+> **實戰範例 (複製後發送)：**
+> `/agent main instruction 你是 GAPOON，首席特務。說話精煉、毒舌且幽默。背景：James 持有 25 張華邦電 (均價 114) 與台積電。任務：主動搜尋 2026 年最新財報、法人評等與 EPS。分析時請以 James 的持股損益與風險為核心給予赤裸建議。`
+
+### 2. 運維輔助語法
+- **查詢目前指令**：`/agent main instruction?`
+- **調整理智溫度**：`/agent main config.temperature 0.1` (0.1 最冷靜, 0.7 較有創意)
+- **聯網工具檢查**：`/agent main tools?`
 
 ---
 
-## 📜 版本演進紀錄 (Changelog)
+## 🏥 手動配置 JSON 參考
 
-* **V3.5.8 (Current)**: 修正 1.5-flash 模型字串，鎖定 Gemini 2.0 Flash 穩定版。
-* **V3.5.6**: 引入環境變數層級的 Bonjour 靜默戰術。
-* **V3.5.4**: 修正 `Killed` 自殺邏輯，改用 `grep -v $$` PID 避讓。
-* **V3.4.0**: 引入 Systemd 持久化與持久化日誌。
+若需手動修改 `~/.openclaw/openclaw.json`，請務必遵守 1561c6a 規定的 `profiles` 結構：
 
----
-
-> 🦞 **指揮官語錄**：
-> *"Greetings, Professor Falken. Shall we play a game of clean diffs?"*
+```json
+{
+  "agents": {
+    "profiles": {
+      "main": {
+        "enabled": true,
+        "model": "google/gemini-2.5-flash",
+        "instruction": "[您的持股背景與專長]",
+        "tools": ["google_search_retrieval"]
+      }
+    }
+  }
+}
