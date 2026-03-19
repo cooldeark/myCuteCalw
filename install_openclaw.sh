@@ -26,6 +26,33 @@ fn_4_pnpm_build() {
 
 fn_5_linger() { sudo loginctl enable-linger $REAL_USER; }
 
+# --- [5.5 建立 Systemd 背景服務] ---
+fn_create_service() {
+    check_env || return 1
+    echo -e "${YELLOW}⚙️ 正在註冊 Systemd 背景服務...${NC}"
+    local SERVICE_DIR="/home/$REAL_USER/.config/systemd/user"
+    sudo -u $REAL_USER mkdir -p "$SERVICE_DIR"
+    sudo -u $REAL_USER cat <<EOT > "$SERVICE_DIR/openclaw-gateway.service"
+[Unit]
+Description=OpenClaw Gateway Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$CLAW_PATH
+ExecStart=$(which node) dist/index.js start
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=default.target
+EOT
+    sudo -u $REAL_USER env $(get_bus_env) systemctl --user daemon-reload
+    sudo -u $REAL_USER env $(get_bus_env) systemctl --user enable openclaw-gateway
+    echo -e "${GREEN}✅ 服務註冊完成！${NC}"
+}
+
 # --- [6 配置同步：核心鎖定版] ---
 fn_6_config_sync() {
     check_env || return 1
@@ -128,7 +155,7 @@ while true; do
         k) fn_status; read -p "返回..." ;;
         l) fn_logs ;;
         d) sudo rm -rf /tmp/openclaw/*.log; read -p "已清..." ;;
-        i) fn_1_system_base; fn_2_env_tools; fn_3_git_clone; fn_4_pnpm_build; fn_5_linger; fn_6_config_sync; read -p "返回..." ;;
+        i) fn_1_system_base; fn_2_env_tools; fn_3_git_clone; fn_4_pnpm_build; fn_5_linger; fn_create_service; fn_6_config_sync; read -p "返回..." ;;
         q) exit 0 ;;
     esac
 done
