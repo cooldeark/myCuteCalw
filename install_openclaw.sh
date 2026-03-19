@@ -40,7 +40,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$CLAW_PATH
-ExecStart=$(which node) dist/index.js start
+ExecStart=$(which node) dist/index.js gateway
 Restart=on-failure
 RestartSec=5
 Environment=NODE_ENV=production
